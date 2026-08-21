@@ -55,14 +55,28 @@ void net_init(void) {}
 void net_cleanup(void) {}
 #endif
 
-#define PORT "5000"
+#define PORT 5000
+#define BACKLOG 64 /* for listen() */
 
 int CreateSocket(void){
-    int cSocket;
+    SOCKET cSocket;
     printf("Creating a Socket\n");
     
     cSocket = socket(AF_INET, SOCK_STREAM, 0);
     return cSocket; 
+}
+
+int BindSocket(int cSocket){
+    int iRetval=-1;
+    struct sockaddr_in  remote= {0};
+    /* Internet address family */
+    remote.sin_family = AF_INET;
+    /* Any incoming interface */
+    remote.sin_addr.s_addr = htonl(INADDR_ANY);
+    remote.sin_port = htons(PORT); /* Local port */
+    
+    iRetval = bind(cSocket,(struct sockaddr *)&remote,sizeof(remote));
+    return iRetval;
 }
 
 // Server main entry
@@ -79,6 +93,19 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     printf("Socket created\n");
+    
+    // bind the created socket
+    if( BindSocket(socket_desc) < 0)
+    {
+        //print the error message
+        perror("bind failed.");
+        return 1;
+    }
+    printf("bind done\n");
+    
+    // listening shit
+    listen(socket_desc, BACKLOG);
+    printf("This mf listening!\n");
     
     // server loop
     while(1){
