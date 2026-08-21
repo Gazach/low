@@ -14,3 +14,7 @@ file(GLOB_RECURSE SOURCES
 )
 
 add_executable(low-server ${SOURCES})
+
+if(WIN32)
+    target_link_libraries(low-server PRIVATE ws2_32)
+endif()
