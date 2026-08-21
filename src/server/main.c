@@ -120,7 +120,6 @@ int main(int argc, char *argv[]) {
 
     SOCKET socket_desc = CreateSocket(res);
     if (socket_desc == INVALID_SOCKET) {
-        printf("Could not create socket\n");
         freeaddrinfo(res);
         return 1;
     }
@@ -146,8 +145,6 @@ int main(int argc, char *argv[]) {
         memset(getting_req, 0, max_leng);
         
         int num_byte = recv(new_fd, getting_req, max_leng, 0);
-        printf("[DEBUG] recv returned: %d\n", num_byte);
-        printf("[DEBUG] buffer contents: \"%s\"\n", getting_req);
         
         if (num_byte <= 0) {
             printf("Client disconnected or recv error.\n");
@@ -156,25 +153,69 @@ int main(int argc, char *argv[]) {
         }
         
         const char *method = methodCheck(getting_req);
+        const char *response_body;
+        const char *status_line;
         
-        if (method == NULL){
+        if (method == NULL) {
             printf("Method Not found.\n");
-            return 1;
+            status_line = "HTTP/1.1 400 Bad Request";
+            response_body = "<html><body><h1>400 Bad Request</h1></body></html>";
+        } else if (strcmp(method, "GET") == 0) {
+            printf("[HANDLING] GET request\n");
+            status_line = "HTTP/1.1 200 OK";
+            response_body = "<html><body><h1>Hello, this was a GET</h1></body></html>";
+        } else if (strcmp(method, "POST") == 0) {
+            printf("[HANDLING] POST request\n");
+        // Find end of headers
+            char *body_start = strstr(getting_req, "\r\n\r\n");
+            
+            if (body_start == NULL) {
+                printf("No header/body separator found (request incomplete?)\n");
+            } else {
+                body_start += 4; // skip past "\r\n\r\n" itself
+        
+                // Find Content-Length header
+                int content_length = 0;
+                char *cl_header = strstr(getting_req, "Content-Length:");
+                if (cl_header != NULL) {
+                    content_length = atoi(cl_header + strlen("Content-Length:"));
+                }
+        
+                printf("[DEBUG] Content-Length: %d\n", content_length);
+        
+                // How much body did we already get in this recv()?
+                int body_have = num_byte - (body_start - getting_req);
+        
+                // If we haven't received the full body yet, keep recv'ing
+                while (body_have < content_length) {
+                    int more = recv(new_fd, getting_req + num_byte, max_leng - num_byte, 0);
+                    if (more <= 0) break; // connection closed/error
+                    num_byte += more;
+                    body_have += more;
+                }
+        
+                // Null-terminate right after the body ends, for safe printing
+                body_start[content_length] = '\0';
+        
+                printf("[POST BODY] %s\n", body_start);
+                }
+            status_line = "HTTP/1.1 200 OK";
+            response_body = "<html><body><h1>Got your POST data!</h1></body></html>";
         } else {
-            printf("%s", method);
+            // method matched something you didn't expect (shouldn't happen given methodCheck, but safe default)
+            status_line = "HTTP/1.1 501 Not Implemented";
+            response_body = "<html><body><h1>501 Not Implemented</h1></body></html>";
         }
         
-        const char *body = "<html><body><h1>Hello from my C server!</h1></body></html>";
-        char response[1024];
-        
+        char response[2048];
         int response_len = snprintf(response, sizeof(response),
-            "HTTP/1.1 200 OK\r\n"
+            "%s\r\n"
             "Content-Type: text/html\r\n"
             "Content-Length: %zu\r\n"
             "Connection: close\r\n"
             "\r\n"
             "%s",
-            strlen(body), body);
+            status_line, strlen(response_body), response_body);
         
         send(new_fd, response, response_len, 0);
         closesocket(new_fd);
