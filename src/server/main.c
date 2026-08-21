@@ -166,39 +166,54 @@ int main(int argc, char *argv[]) {
             response_body = "<html><body><h1>Hello, this was a GET</h1></body></html>";
         } else if (strcmp(method, "POST") == 0) {
             printf("[HANDLING] POST request\n");
-        // Find end of headers
+            // Find end of headers
             char *body_start = strstr(getting_req, "\r\n\r\n");
             
             if (body_start == NULL) {
                 printf("No header/body separator found (request incomplete?)\n");
             } else {
-                body_start += 4; // skip past "\r\n\r\n" itself
-        
+                body_start += 4;
+            
                 // Find Content-Length header
-                int content_length = 0;
+                long content_length = 0;
                 char *cl_header = strstr(getting_req, "Content-Length:");
                 if (cl_header != NULL) {
-                    content_length = atoi(cl_header + strlen("Content-Length:"));
+                    content_length = strtol(cl_header + strlen("Content-Length:"), NULL, 10);
                 }
-        
-                printf("[DEBUG] Content-Length: %d\n", content_length);
-        
-                // How much body did we already get in this recv()?
-                int body_have = num_byte - (body_start - getting_req);
-        
+            
+                // Reject garbage/negative values outright
+                if (content_length < 0) {
+                    content_length = 0;
+                }
+            
+                // Clamp to what the buffer can actually hold, leaving room for
+                // the null terminator we write below.
+                long max_body = max_leng - (body_start - getting_req) - 1;
+                if (content_length > max_body) {
+                    printf("[WARN] Content-Length %ld exceeds buffer capacity, clamping to %ld\n",
+                           content_length, max_body);
+                    content_length = max_body;
+                }
+            
+                // How much body did we already get in this recv()
+                long body_have = num_byte - (body_start - getting_req);
+            
                 // If we haven't received the full body yet, keep recv'ing
                 while (body_have < content_length) {
-                    int more = recv(new_fd, getting_req + num_byte, max_leng - num_byte, 0);
+                    int space_left = max_leng - num_byte;
+                    if (space_left <= 0) break; // buffer full, stop to avoid overflow
+            
+                    int more = recv(new_fd, getting_req + num_byte, space_left, 0);
                     if (more <= 0) break; // connection closed/error
                     num_byte += more;
                     body_have += more;
                 }
-        
+            
                 // Null-terminate right after the body ends, for safe printing
                 body_start[content_length] = '\0';
-        
+            
                 printf("[POST BODY] %s\n", body_start);
-                }
+            }
             status_line = "HTTP/1.1 200 OK";
             response_body = "<html><body><h1>Got your POST data!</h1></body></html>";
         } else {
