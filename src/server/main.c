@@ -97,6 +97,18 @@ int accepting_shit(int cSocket){
     
     return new_fd;
 }
+
+const char *methodCheck(const char *getting_req) {
+    if (strncmp(getting_req, "GET ", 4) == 0) {
+        printf("[MATCH] Method received : GET\n");
+        return "GET";
+    }  else   if (strncmp(getting_req, "POST ", 5) == 0) {
+        printf("[MATCH] Method received : POST\n");
+        return "POST";
+    } 
+
+    return NULL;
+}
 // Server main entry
 int main(int argc, char *argv[]) {
     net_init();
@@ -112,7 +124,6 @@ int main(int argc, char *argv[]) {
         freeaddrinfo(res);
         return 1;
     }
-    printf("Socket created\n");
 
     int bindResult = BindSocket(socket_desc, res);
     freeaddrinfo(res);  // done with this either way
@@ -120,23 +131,53 @@ int main(int argc, char *argv[]) {
         perror("bind failed.");
         return 1;
     }
-    printf("bind done\n");
-    printf("bind result : %d\n", bindResult);
 
     listen(socket_desc, BACKLOG);
-    printf("This mf listening!\n");
-
-    int new_fd = accepting_shit(socket_desc);
-    printf("This mf got accept!\n");
     
-    int max_leng = 100000;
-    char getting_req[max_leng];
-    memset(getting_req, 0, max_leng);
-    
-    int num_byte = recv(new_fd, getting_req, max_leng, 0);
-    
-    for(int i = 0; i < num_byte; ++i){
-        putchar(getting_req[i]);
+    while(1){
+        int new_fd = accepting_shit(socket_desc);
+        if (new_fd == INVALID_SOCKET) {
+            perror("accept failed");
+            continue; // don't process this connection at all
+        }
+        
+        int max_leng = 100000;
+        char getting_req[max_leng];
+        memset(getting_req, 0, max_leng);
+        
+        int num_byte = recv(new_fd, getting_req, max_leng, 0);
+        printf("[DEBUG] recv returned: %d\n", num_byte);
+        printf("[DEBUG] buffer contents: \"%s\"\n", getting_req);
+        
+        if (num_byte <= 0) {
+            printf("Client disconnected or recv error.\n");
+            closesocket(new_fd);
+            continue; // go back to accept() for the next connection
+        }
+        
+        const char *method = methodCheck(getting_req);
+        
+        if (method == NULL){
+            printf("Method Not found.\n");
+            return 1;
+        } else {
+            printf("%s", method);
+        }
+        
+        const char *body = "<html><body><h1>Hello from my C server!</h1></body></html>";
+        char response[1024];
+        
+        int response_len = snprintf(response, sizeof(response),
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: %zu\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "%s",
+            strlen(body), body);
+        
+        send(new_fd, response, response_len, 0);
+        closesocket(new_fd);
     }
 
 
