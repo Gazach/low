@@ -86,6 +86,17 @@ int BindSocket(int cSocket, struct addrinfo *res) {
     return bind(cSocket, res->ai_addr, res->ai_addrlen);
 }
 
+int accepting_shit(int cSocket){
+    struct sockaddr_storage their_addr;
+    socklen_t addr_size;
+    int new_fd;
+    
+    addr_size = sizeof their_addr;
+    
+    new_fd = accept(cSocket, (struct sockaddr *)&their_addr, &addr_size);
+    
+    return new_fd;
+}
 // Server main entry
 int main(int argc, char *argv[]) {
     net_init();
@@ -115,10 +126,19 @@ int main(int argc, char *argv[]) {
     listen(socket_desc, BACKLOG);
     printf("This mf listening!\n");
 
-    while (1) {
-        printf("Wait for request...\n");
-        sleep_ms(1000);
+    int new_fd = accepting_shit(socket_desc);
+    printf("This mf got accept!\n");
+    
+    int max_leng = 100000;
+    char getting_req[max_leng];
+    memset(getting_req, 0, max_leng);
+    
+    int num_byte = recv(new_fd, getting_req, max_leng, 0);
+    
+    for(int i = 0; i < num_byte; ++i){
+        putchar(getting_req[i]);
     }
+
 
     net_cleanup();
     closesocket(socket_desc);
