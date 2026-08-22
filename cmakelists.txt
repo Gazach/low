@@ -8,13 +8,18 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Only your own source — NOT src/vendor, which is prebuilt separately
 file(GLOB_RECURSE SOURCES
-    "src/*.cpp"
-    "src/*.c"
+    "src/server/*.cpp"
+    "src/server/*.c"
+    "src/lowmain.c" # main entry
 )
 
 add_executable(low-server ${SOURCES})
 
+set(LUAJIT_DIR "${CMAKE_SOURCE_DIR}/src/vendor/luajit-runtime")
+target_include_directories(low-server PRIVATE ${LUAJIT_DIR})
+
 if(WIN32)
-    target_link_libraries(low-server PRIVATE ws2_32)
+    target_link_libraries(low-server PRIVATE ws2_32 "${LUAJIT_DIR}/lua51.lib")
 endif()
