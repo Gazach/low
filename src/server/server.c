@@ -77,7 +77,6 @@ struct addrinfo *GetAddressInfo(const char *port, int family) {
 }
 
 int CreateSocket(struct addrinfo *res) {
-    printf("Creating a Socket\n");
     return socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 }
 
@@ -271,7 +270,9 @@ int server(const char *port) {
         return 1;
     }
 
-    printf("Listening on IPv4 and IPv6, port %s\n", port);
+    printf("Listening on IPv4 and IPv6, port %s\n"
+        "Open : http://localhost:%s/\n"
+    , port, port);
 
     while (1) {
         fd_set readfds;
