@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "server.h"
 
 // Platform-specific networking headers and macros
 #ifdef _WIN32
@@ -58,7 +56,7 @@ void net_init(void) {}
 void net_cleanup(void) {}
 #endif
 
-#define PORT "5000"
+#define DEFAULT_PORT "5000"
 #define BACKLOG 64 /* for listen() */
 
 // address getaddrinfo() happens to return first.
@@ -114,8 +112,8 @@ const char *methodCheck(const char *getting_req) {
 
 // Sets up one listening socket bound to the given address family
 // (AF_INET or AF_INET6). Returns INVALID_SOCKET on failure.
-SOCKET SetupListener(int family) {
-    struct addrinfo *res = GetAddressInfo(PORT, family);
+SOCKET SetupListener(int family, const char *port) {
+    struct addrinfo *res = GetAddressInfo(port, family);
     if (res == NULL) {
         return INVALID_SOCKET;
     }
@@ -168,11 +166,11 @@ void HandleConnection(SOCKET new_fd) {
 
     if (method == NULL) {
         printf("Method Not found.\n");
-        status_line = "HTTP/1.1 400 Bad Request";
+        status_line = STATUS_LINE(400);
         response_body = "<html><body><h1>400 Bad Request</h1></body></html>";
     } else if (strcmp(method, "GET") == 0) {
         printf("[HANDLING] GET request\n");
-        status_line = "HTTP/1.1 200 OK";
+        status_line = STATUS_LINE(200);
         response_body = "<html><body><h1>Hello, this was a GET</h1></body></html>";
     } else if (strcmp(method, "POST") == 0) {
         printf("[HANDLING] POST request\n");
@@ -224,11 +222,11 @@ void HandleConnection(SOCKET new_fd) {
 
             printf("[POST BODY] %s\n", body_start);
         }
-        status_line = "HTTP/1.1 200 OK";
+        status_line = STATUS_LINE(200);
         response_body = "<html><body><h1>Got your POST data!</h1></body></html>";
     } else {
         // method matched something you didn't expect (shouldn't happen given methodCheck, but safe default)
-        status_line = "HTTP/1.1 501 Not Implemented";
+        status_line = STATUS_LINE(501);
         response_body = "<html><body><h1>501 Not Implemented</h1></body></html>";
     }
 
@@ -246,24 +244,34 @@ void HandleConnection(SOCKET new_fd) {
     closesocket(new_fd);
 }
 
+// setting a port
+const char *set_port(const char * ports) {
+    if (ports == 0 || ports == NULL) {
+        return DEFAULT_PORT;
+    } else {
+        return ports;
+    }
+}
 // Server main entry
-int server() {
+int server(const char *port) {
     net_init();
 
-    SOCKET sock4 = SetupListener(AF_INET);
+    const char *ports = set_port(port);
+
+    SOCKET sock4 = SetupListener(AF_INET, ports);
     if (sock4 == INVALID_SOCKET) {
         net_cleanup();
         return 1;
     }
 
-    SOCKET sock6 = SetupListener(AF_INET6);
+    SOCKET sock6 = SetupListener(AF_INET6, ports);
     if (sock6 == INVALID_SOCKET) {
         closesocket(sock4);
         net_cleanup();
         return 1;
     }
 
-    printf("Listening on IPv4 and IPv6, port %s\n", PORT);
+    printf("Listening on IPv4 and IPv6, port %s\n", port);
 
     while (1) {
         fd_set readfds;

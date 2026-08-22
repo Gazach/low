@@ -12,6 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 file(GLOB_RECURSE SOURCES
     "src/server/*.cpp"
     "src/server/*.c"
+    "src/engine/*.c"
+    "src/bindings/*.c"
     "src/lowmain.c" # main entry
 )
 
